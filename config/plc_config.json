@@ -1,0 +1,31 @@
+{
+    "conexion": {
+        "ip_plc": "192.168.100.120",
+        "puerto_plc": 5007,
+        "protocolo": "Mitsubishi-MC-3E",
+        "timeout": 5
+    },
+    "direcciones": {
+        "dispositivo_trigger": "D28",
+        "dispositivo_valor": "D29",
+        "dispositivo_filas": "D14"
+    },
+    "codigos_estado": {
+        "valor_solicitud": 99,
+        "valor_exito": 88,
+        "valor_error": 77,
+        "valor_idle": 0
+    },
+    "vision": {
+        "mm_per_pixel": 0.5,
+        "confianza_minima": 0.5,
+        "usar_centro_imagen": true,
+        "referencia_x_custom": null
+    },
+    "sistema": {
+        "delay_polling_ms": 100,
+        "delay_post_procesamiento_ms": 500,
+        "modo_simulacion": false,
+        "habilitar_logs_detallados": true
+    }
+}

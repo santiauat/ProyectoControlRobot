@@ -1,0 +1,27 @@
+# Paso 1: Ir a la carpeta del proyecto
+cd C:\Users\santi\Desktop\proyecto_plc_yolo
+
+# Paso 2: Verificar que existe venv
+dir venv
+
+# Paso 3: Activar entorno (IMPORTANTE)
+.\venv\Scripts\activate
+
+# Debes ver (venv) al inicio, ejemplo:
+# (venv) PS C:\Users\santi\Desktop\proyecto_plc_yolo>
+
+# Paso 4: Actualizar pip
+python -m pip install --upgrade pip
+
+# Paso 5: Instalar TODO
+pip install pymcprotocol
+pip install ultralytics
+pip install opencv-python
+pip install pillow
+pip install numpy
+
+# Paso 6: Verificar que TODO está instalado
+pip list
+
+# Paso 7: Ejecutar
+python main.py
