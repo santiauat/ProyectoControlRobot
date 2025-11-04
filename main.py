@@ -11,6 +11,7 @@ import json
 import time
 from pathlib import Path
 
+# <<< Asumiendo que tus archivos están en estas carpetas >>>
 from core.plc_controller import PLCController
 from core.vision_processor import VisionProcessor
 from utils.logger import setup_logger, log_resultado_procesamiento, log_estado_plc
@@ -31,12 +32,16 @@ class SistemaPLCYOLO:
         self.root.geometry("1200x800")
         
         # Logger
+        # <<< Asegúrate de que la carpeta 'logs' exista >>>
+        Path('logs').mkdir(exist_ok=True) 
         self.logger = setup_logger('SistemaPLC', archivo_log='logs/sistema.log')
         self.logger.info("="*70)
         self.logger.info("INICIANDO SISTEMA PLC-YOLO")
         self.logger.info("="*70)
         
         # Cargar configuración
+        # <<< Asegúrate de que la carpeta 'config' exista >>>
+        Path('config').mkdir(exist_ok=True) 
         self.config = self._cargar_configuracion()
         
         # Componentes del sistema
@@ -46,7 +51,7 @@ class SistemaPLCYOLO:
         
         # Estado del sistema
         self.modo_realtime_activo = False
-        self.modo_simulacion = self.config['sistema']['modo_simulacion']
+        self.modo_simulacion = self.config.get('sistema', {}).get('modo_simulacion', True) # <<< Lectura más segura >>>
         self.video_cap = None
         self.frame_actual = None
         
@@ -58,13 +63,17 @@ class SistemaPLCYOLO:
     
     def _cargar_configuracion(self):
         """Carga configuración desde JSON"""
+        config_path = 'config/plc_config.json'
         try:
-            with open('config/plc_config.json', 'r') as f:
+            with open(config_path, 'r') as f:
                 config = json.load(f)
-            self.logger.info("✅ Configuración cargada")
+            self.logger.info(f"✅ Configuración cargada desde {config_path}")
             return config
+        except FileNotFoundError:
+            self.logger.warning(f"⚠️ No se encontró {config_path}. Usando config vacía.")
+            return {}
         except Exception as e:
-            self.logger.error(f"❌ Error cargando configuración: {e}")
+            self.logger.error(f"❌ Error cargando {config_path}: {e}")
             messagebox.showerror("Error", f"No se pudo cargar config: {e}")
             return {}
     
@@ -117,10 +126,11 @@ class SistemaPLCYOLO:
         # Sección: Cámara
         ttk.Label(panel_controles, text="Fuente de Video", font=('Arial', 12, 'bold')).pack(anchor=tk.W)
         
-        ttk.Button(panel_controles, text="📹 Abrir Cámara", 
-                  command=self._abrir_camara).pack(fill=tk.X, pady=5)
+        # <<< CAMBIO: Botón y comando actualizados >>>
+        ttk.Button(panel_controles, text="📁 Cargar Video", 
+                  command=self._cargar_video).pack(fill=tk.X, pady=5)
         
-        self.camara_status_var = tk.StringVar(value="Sin cámara")
+        self.camara_status_var = tk.StringVar(value="Sin video") # <<< CAMBIO: Texto actualizado >>>
         ttk.Label(panel_controles, textvariable=self.camara_status_var).pack(anchor=tk.W, pady=5)
         
         ttk.Separator(panel_controles, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
@@ -128,8 +138,9 @@ class SistemaPLCYOLO:
         # Sección: Sistema
         ttk.Label(panel_controles, text="Sistema", font=('Arial', 12, 'bold')).pack(anchor=tk.W)
         
+        self.chk_simulacion_var = tk.BooleanVar(value=self.modo_simulacion) # <<< CAMBIO: Variable separada >>>
         self.chk_simulacion = ttk.Checkbutton(panel_controles, text="Modo Simulación (sin PLC)", 
-                                             variable=tk.BooleanVar(value=self.modo_simulacion),
+                                             variable=self.chk_simulacion_var,
                                              command=self._toggle_simulacion)
         self.chk_simulacion.pack(anchor=tk.W, pady=5)
         
@@ -146,7 +157,7 @@ class SistemaPLCYOLO:
         panel_video.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         self.canvas_video = tk.Canvas(panel_video, width=640, height=480, bg='black')
-        self.canvas_video.pack()
+        self.canvas_video.pack(fill=tk.BOTH, expand=True) # <<< CAMBIO: Permitir que se expanda >>>
         
         # ==================== PANEL DERECHO (Resultados) ====================
         panel_resultados = ttk.LabelFrame(self.root, text="Últimos Resultados", padding=10)
@@ -154,7 +165,7 @@ class SistemaPLCYOLO:
         
         self.text_resultados = tk.Text(panel_resultados, width=40, height=30, 
                                        font=('Consolas', 9))
-        self.text_resultados.pack(fill=tk.BOTH, expand=True)
+        self.text_resultados.pack(fill=tk.BOTH, expand=True, side=tk.LEFT) # <<< CAMBIO: Lado izquierdo >>>
         
         scrollbar = ttk.Scrollbar(panel_resultados, command=self.text_resultados.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -163,27 +174,32 @@ class SistemaPLCYOLO:
     def _conectar_plc(self):
         """Conecta al PLC"""
         try:
-            self.controlador_plc = PLCController()
+            self.controlador_plc = PLCController(self.config) # <<< CAMBIO: Pasa la config >>>
             if self.controlador_plc.conectar():
                 self.plc_status_var.set("✅ Conectado")
+                self.plc_status_var.config(foreground='green') # <<< CAMBIO: Color >>>
                 self.btn_conectar_plc.config(state=tk.DISABLED)
                 self.btn_desconectar_plc.config(state=tk.NORMAL)
                 self._actualizar_estado_ui()
                 self.logger.info("✅ PLC conectado exitosamente")
             else:
-                messagebox.showerror("Error PLC", "No se pudo conectar al PLC")
+                self.plc_status_var.set("❌ Error Conexión") # <<< CAMBIO: Más info >>>
+                self.plc_status_var.config(foreground='red')
+                messagebox.showerror("Error PLC", "No se pudo conectar al PLC. Revisa IP/Puerto y conexión.")
         except Exception as e:
-            messagebox.showerror("Error", f"Error al conectar PLC: {e}")
-            self.logger.error(f"❌ Error conectando PLC: {e}")
+            messagebox.showerror("Error", f"Error al instanciar PLC: {e}")
+            self.logger.error(f"❌ Error instanciando PLC: {e}")
     
     def _desconectar_plc(self):
         """Desconecta del PLC"""
         if self.controlador_plc:
             self.controlador_plc.desconectar()
             self.plc_status_var.set("Desconectado")
+            self.plc_status_var.config(foreground='red') # <<< CAMBIO: Color >>>
             self.btn_conectar_plc.config(state=tk.NORMAL)
             self.btn_desconectar_plc.config(state=tk.DISABLED)
             self._actualizar_estado_ui()
+            self.logger.info("🔌 PLC desconectado")
     
     def _cargar_modelo(self):
         """Carga modelo YOLO"""
@@ -194,7 +210,12 @@ class SistemaPLCYOLO:
         
         if archivo:
             try:
+                # <<< CAMBIO: Intenta importar YOLO aquí >>>
                 from ultralytics import YOLO
+                self.logger.info(f"Cargando modelo desde: {archivo}...")
+                self.status_var.set("Cargando modelo...")
+                self.root.update() # Forzar actualización de UI
+                
                 self.modelo_yolo = YOLO(archivo)
                 
                 # Crear processor
@@ -204,26 +225,56 @@ class SistemaPLCYOLO:
                 self.modelo_status_var.set(f"✅ {Path(archivo).name}")
                 self._actualizar_estado_ui()
                 self.logger.info(f"✅ Modelo cargado: {archivo}")
+                self.status_var.set("Modelo cargado")
+            except ImportError:
+                messagebox.showerror("Error", "Librería 'ultralytics' no encontrada. Instálala con 'pip install ultralytics'")
+                self.logger.error("❌ Error: Librería 'ultralytics' no encontrada.")
             except Exception as e:
                 messagebox.showerror("Error", f"No se pudo cargar el modelo: {e}")
                 self.logger.error(f"❌ Error cargando modelo: {e}")
+                self.status_var.set("Error al cargar modelo")
     
-    def _abrir_camara(self):
-        """Abre la cámara"""
-        try:
-            self.video_cap = cv2.VideoCapture(0)
-            if self.video_cap.isOpened():
-                self.camara_status_var.set("✅ Cámara activa")
-                self._actualizar_estado_ui()
-                self.logger.info("✅ Cámara abierta")
-            else:
-                messagebox.showerror("Error", "No se pudo abrir la cámara")
-        except Exception as e:
-            messagebox.showerror("Error", f"Error con cámara: {e}")
-    
+    # <<< CAMBIO: Función reemplazada de _abrir_camara a _cargar_video >>>
+    def _cargar_video(self):
+        """Abre un archivo de video para procesar"""
+        archivo = filedialog.askopenfilename(
+            title="Seleccionar archivo de video",
+            filetypes=[("Archivos de video", "*.mp4 *.avi *.mkv *.mov"), ("Todos", "*.*")]
+        )
+        
+        if archivo:
+            try:
+                # Si ya hay un video/cámara, liberarlo primero
+                if self.video_cap:
+                    self.video_cap.release()
+                    
+                self.video_cap = cv2.VideoCapture(archivo)
+                
+                if self.video_cap.isOpened():
+                    # Obtener info del video
+                    fps = self.video_cap.get(cv2.CAP_PROP_FPS)
+                    frames = self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                    self.camara_status_var.set(f"✅ {Path(archivo).name} ({int(fps)} FPS)")
+                    self._actualizar_estado_ui()
+                    self.logger.info(f"✅ Video cargado: {archivo} ({int(frames)} frames @ {int(fps)} FPS)")
+                    
+                    # Mostrar primer frame
+                    ret, frame = self.video_cap.read()
+                    if ret:
+                        self._mostrar_frame(frame)
+                    # Resetear video al inicio
+                    self.video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    
+                else:
+                    messagebox.showerror("Error", f"No se pudo abrir el archivo de video: {archivo}")
+                    self.logger.error(f"❌ No se pudo abrir el video: {archivo}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error cargando video: {e}")
+                self.logger.error(f"❌ Error cargando video: {e}")
+
     def _toggle_simulacion(self):
         """Alterna modo simulación"""
-        self.modo_simulacion = not self.modo_simulacion
+        self.modo_simulacion = self.chk_simulacion_var.get() # <<< CAMBIO: Lee desde la variable >>>
         self._actualizar_estado_ui()
         self.logger.info(f"Modo simulación: {self.modo_simulacion}")
     
@@ -242,11 +293,18 @@ class SistemaPLCYOLO:
     
     def _iniciar_sistema(self):
         """Inicia el loop principal del sistema"""
+        if self.modo_realtime_activo:
+            return # Ya está corriendo
+            
         self.modo_realtime_activo = True
         self.btn_iniciar.config(state=tk.DISABLED)
         self.btn_detener.config(state=tk.NORMAL)
-        self.status_var.set("🟢 Sistema ACTIVO - Monitoreando PLC")
+        self.status_var.set("🟢 Sistema ACTIVO - Monitoreando")
         self.logger.info("🚀 Sistema iniciado")
+        
+        # Deshabilitar controles mientras corre
+        self.btn_conectar_plc.config(state=tk.DISABLED)
+        self.chk_simulacion.config(state=tk.DISABLED)
         
         # Iniciar loop
         self._loop_principal()
@@ -258,15 +316,21 @@ class SistemaPLCYOLO:
         self.btn_detener.config(state=tk.DISABLED)
         self.status_var.set("Sistema detenido")
         self.logger.info("⏹️ Sistema detenido")
+        
+        # Rehabilitar controles
+        if not (self.controlador_plc and self.controlador_plc.is_connected):
+            self.btn_conectar_plc.config(state=tk.NORMAL)
+        self.chk_simulacion.config(state=tk.NORMAL)
     
     def _loop_principal(self):
         """
         Loop principal del sistema - Implementa el handshake PLC
         """
         if not self.modo_realtime_activo:
+            self.logger.info("Loop detenido por bandera 'modo_realtime_activo'")
             return
         
-        delay_siguiente = 100  # ms
+        delay_siguiente = 100  # ms (tiempo de espera entre lecturas de PLC)
         
         try:
             # 1. Capturar frame
@@ -276,15 +340,24 @@ class SistemaPLCYOLO:
                     self._mostrar_frame(frame)
                     self.frame_actual = frame.copy()
                 else:
-                    self.root.after(1000, self._loop_principal)
+                    # <<< CAMBIO: Reiniciar video al terminar >>>
+                    self.logger.info("Video finalizado, reiniciando...")
+                    self.video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0) # Reiniciar video
+                    self.root.after(100, self._loop_principal) # Intentar leer de nuevo
                     return
-            
+            else:
+                self.logger.error("Error en loop: VideoCap no está abierto.")
+                self._detener_sistema()
+                messagebox.showerror("Error", "Se perdió la fuente de video.")
+                return
+
             # 2. Consultar PLC (o simular)
             procesar = False
             if self.modo_simulacion:
-                procesar = True  # En simulación, procesar siempre
+                procesar = True  # En simulación, procesar cada frame
             elif self.controlador_plc and self.controlador_plc.is_connected:
                 procesar = self.controlador_plc.leer_solicitud_inspeccion()
+                log_estado_plc(self.logger, self.controlador_plc, procesar) # <<< Log de estado >>>
             
             # 3. Procesar si hay solicitud
             if procesar:
@@ -292,6 +365,11 @@ class SistemaPLCYOLO:
                 self.root.update()
                 
                 # Ejecutar YOLO
+                if not self.vision_processor or not self.modelo_yolo:
+                    self.logger.error("Error crítico: VisionProcessor o Modelo no están inicializados.")
+                    self._detener_sistema()
+                    return
+
                 resultados_yolo = self.modelo_yolo.predict(self.frame_actual, verbose=False)
                 
                 # Procesar con VisionProcessor
@@ -314,14 +392,20 @@ class SistemaPLCYOLO:
                 self._mostrar_resultado(resultado)
                 
                 # Enviar a PLC
-                if not self.modo_simulacion:
-                    self.controlador_plc.escribir_resultados(
+                if not self.modo_simulacion and self.controlador_plc:
+                    exito_escritura = self.controlador_plc.escribir_resultados(
                         resultado['desviacion_mm'],
                         resultado['filas'],
-                        resultado['success']
+                        resultado['success'] # 'success' ya es booleano
                     )
+                    if not exito_escritura:
+                        self.logger.error("❌ FALLO AL ESCRIBIR EN PLC")
+                        self.plc_status_var.set("❌ Error Escritura")
+                        self.plc_status_var.config(foreground='red')
+                        # Podrías detener el sistema aquí si la escritura es crítica
+                        # self._detener_sistema() 
                 
-                delay_siguiente = 500  # Esperar más después de procesar
+                delay_siguiente = self.config.get('sistema', {}).get('delay_post_proceso_ms', 500) # Esperar más
             else:
                 if not self.modo_simulacion:
                     self.status_var.set("🟢 Monitoreando PLC (esperando D28=99)")
@@ -330,19 +414,32 @@ class SistemaPLCYOLO:
             self.root.after(delay_siguiente, self._loop_principal)
             
         except Exception as e:
-            self.logger.error(f"❌ Error en loop principal: {e}")
+            self.logger.error(f"❌ Error fatal en loop principal: {e}", exc_info=True) # <<< exc_info=True >>>
             self._detener_sistema()
-            messagebox.showerror("Error", f"Error en el sistema: {e}")
+            messagebox.showerror("Error de Ejecución", f"Error fatal en el sistema: {e}")
     
     def _mostrar_frame(self, frame):
-        """Muestra frame en canvas"""
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame_resized = cv2.resize(frame_rgb, (640, 480))
-        imagen = Image.fromarray(frame_resized)
-        imagen_tk = ImageTk.PhotoImage(imagen)
-        
-        self.canvas_video.create_image(0, 0, anchor=tk.NW, image=imagen_tk)
-        self.canvas_video.image = imagen_tk  # Mantener referencia
+        """Muestra frame en canvas, redimensionando al tamaño del canvas"""
+        try:
+            # <<< CAMBIO: Redimensionar al tamaño del canvas dinámicamente >>>
+            canvas_width = self.canvas_video.winfo_width()
+            canvas_height = self.canvas_video.winfo_height()
+
+            # Evitar error si el canvas es 0x0 al inicio
+            if canvas_width < 10 or canvas_height < 10:
+                canvas_width, canvas_height = 640, 480 # Default
+                
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_resized = cv2.resize(frame_rgb, (canvas_width, canvas_height))
+            
+            imagen = Image.fromarray(frame_resized)
+            imagen_tk = ImageTk.PhotoImage(imagen)
+            
+            self.canvas_video.create_image(0, 0, anchor=tk.NW, image=imagen_tk)
+            self.canvas_video.image = imagen_tk  # Mantener referencia
+        except Exception as e:
+            self.logger.warning(f"⚠️ Error al mostrar frame: {e}")
+
     
     def _mostrar_resultado(self, resultado):
         """Muestra resultado en panel de texto"""
@@ -360,24 +457,28 @@ class SistemaPLCYOLO:
             if 'metadata' in resultado:
                 meta = resultado['metadata']
                 texto += f"\n📈 Metadata:\n"
-                texto += f"  • Total detectado: {meta.get('total_detectado')}\n"
-                texto += f"  • Válidas: {meta.get('detecciones_validas')}\n"
+                texto += f"  • Total detectado: {meta.get('total_detectado', 'N/A')}\n"
+                texto += f"  • Válidas: {meta.get('detecciones_validas', 'N/A')}\n"
                 texto += f"  • Conf. promedio: {meta.get('confianza_promedio', 0):.2%}\n"
         else:
             texto += f"❌ Estado: FALLO\n"
-            texto += f"📋 Razón: {resultado.get('metadata', {}).get('razon_fallo')}\n"
+            texto += f"📋 Razón: {resultado.get('metadata', {}).get('razon_fallo', 'Desconocida')}\n"
         
+        # Insertar al final y hacer scroll
         self.text_resultados.insert(tk.END, texto)
         self.text_resultados.see(tk.END)
     
     def cerrar(self):
         """Limpia recursos al cerrar"""
+        self.logger.info("Iniciando cierre del sistema...")
         self._detener_sistema()
         
         if self.video_cap:
+            self.logger.info("Liberando captura de video...")
             self.video_cap.release()
         
         if self.controlador_plc:
+            self.logger.info("Desconectando PLC...")
             self.controlador_plc.desconectar()
         
         self.logger.info("👋 Sistema cerrado")
@@ -388,6 +489,10 @@ class SistemaPLCYOLO:
 # PUNTO DE ENTRADA
 # =============================================================================
 if __name__ == "__main__":
+    # <<< Asegúrate de que las carpetas core y utils estén accesibles >>>
+    # (Esto asume que core/ y utils/ están al mismo nivel que main.py
+    # o en el PYTHONPATH)
+    
     root = tk.Tk()
     app = SistemaPLCYOLO(root)
     root.protocol("WM_DELETE_WINDOW", app.cerrar)

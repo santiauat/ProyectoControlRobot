@@ -1,0 +1,47 @@
+{
+  "plc": {
+    "ip_plc": "192.168.100.120",
+    "puerto_plc": 5007,
+    "protocolo": "Mitsubishi-MC-3E",
+    "dispositivo_trigger": "D28",
+    "dispositivo_valor": "D29",
+    "dispositivo_filas": "D14",
+    "valor_solicitud": 99,
+    "valor_exito": 88,
+    "valor_error": 77
+  },
+  "sistema": {
+    "modo_simulacion": true,
+    "delay_lectura_plc_ms": 100,
+    "delay_post_proceso_ms": 500,
+    "delay_simulacion_ms": 500
+  },
+  "vision": {
+    "confianza_sup": 0.45,
+    "confianza_lat": 0.05,
+    
+    "mm_per_pixel": 0.5,
+
+    "CLASES_FALLO_SUPERIOR": [
+      "error_apilado",
+      "error_alerta"
+    ],
+    "CLASE_POSICION": "posicion_columna",
+    "CLASE_VACIO": "posicion_vacia",
+    "TOTAL_POSICIONES": 8,
+    "TOLERANCIA_COLUMNA_PX": 30,
+    "CORRECCION_Y_FIJA_PX": 50,
+    
+    "CLASES_ANOMALIA_LATERAL": [
+      "error_caido"
+    ],
+    "CLASE_REFERENCIA": "referencia_fija",
+    "CLASE_BORDE_ENV": "borde_envase",
+    "CLASE_MITAD_ENV": "mitad_envase",
+    "D_REAL_MM": 100.0,
+    "OFFSET_CERO_PX": 40,
+    
+    "max_desviacion_y_mm_valida": 100.0,
+    "max_correccion_z_mm_valida": 50.0
+  }
+}
